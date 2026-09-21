@@ -1,0 +1,35 @@
+{
+  "name": "@aiobooks/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@aiobooks/core": "workspace:*",
+    "@aiobooks/downloaders": "workspace:*",
+    "@aiobooks/libraries": "workspace:*",
+    "@aiobooks/metadata": "workspace:*",
+    "@aiobooks/providers": "workspace:*",
+    "@fastify/cookie": "^11.0.2",
+    "@fastify/cors": "^11.1.0",
+    "@fastify/helmet": "^13.0.2",
+    "@fastify/rate-limit": "^10.3.0",
+    "@node-rs/argon2": "^2.0.2",
+    "bullmq": "^5.58.5",
+    "fastify": "^5.6.0",
+    "ioredis": "^5.7.0",
+    "postgres": "^3.4.7",
+    "zod": "^4.1.5"
+  },
+  "devDependencies": {
+    "tsx": "^4.20.5",
+    "@types/node": "^24.3.1",
+    "vitest": "^3.2.4"
+  }
+}

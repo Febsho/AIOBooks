@@ -1,0 +1,9 @@
+{
+  "name": "@aiobooks/database",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "echo 'SQL migrations require no compilation'",
+    "typecheck": "echo 'SQL migrations require no typecheck'"
+  }
+}

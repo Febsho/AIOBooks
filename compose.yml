@@ -1,0 +1,89 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: aiobooks
+      POSTGRES_USER: aiobooks
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+    volumes:
+      - aiobooks_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aiobooks -d aiobooks"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: redis:8-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - aiobooks_redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  server:
+    build:
+      context: .
+      target: server
+    environment:
+      NODE_ENV: production
+      SERVER_HOST: 0.0.0.0
+      SERVER_PORT: 3000
+      DATABASE_URL: postgresql://aiobooks:${POSTGRES_PASSWORD:-change-me}@postgres:5432/aiobooks
+      REDIS_URL: redis://redis:6379
+      ACQUISITION_STAGING_PATH: /data/staging
+      LIBRARY_ROOT_PATH: /data/libraries
+      SESSION_TTL_DAYS: ${SESSION_TTL_DAYS:-30}
+      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
+      CREDENTIAL_ENCRYPTION_KEY: ${CREDENTIAL_ENCRYPTION_KEY:-}
+      WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:8080}
+      OPENLIBRARY_USER_AGENT: ${OPENLIBRARY_USER_AGENT:-AIOBooks/self-hosted}
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    volumes:
+      - aiobooks_data:/data
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [default, aio_network]
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      target: web
+    depends_on:
+      server: { condition: service_healthy }
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.aiobooks.rule=Host(`${AIOBOOKS_HOST:-aiobooks.example.com}`)
+      - traefik.http.routers.aiobooks.entrypoints=websecure
+      - traefik.http.routers.aiobooks.tls=true
+      - traefik.http.services.aiobooks.loadbalancer.server.port=8080
+    networks: [default, aio_network]
+    restart: unless-stopped
+
+networks:
+  aio_network:
+    external: true
+
+volumes:
+  aiobooks_postgres:
+  aiobooks_redis:
+  aiobooks_data:
