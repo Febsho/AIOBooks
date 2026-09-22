@@ -15,7 +15,8 @@ services:
     restart: unless-stopped
 
   redis:
-    image: redis:8-alpine
+    # Redis 7 Alpine publishes a linux/arm64/v8 manifest; Redis 8 Alpine does not.
+    image: redis:7-alpine
     command: ["redis-server", "--appendonly", "yes"]
     volumes:
       - aiobooks_redis:/data
