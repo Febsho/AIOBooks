@@ -1,4 +1,4 @@
-import type { ConnectionTestResult, DownloadClient, DownloadJobStatus, EnqueueDownloadInput } from "@aiobooks/core";
+import type { ConnectionTestResult, DownloadClient, DownloadJobStatus, EnqueueDownloadInput, RemoteOutputReference } from "@aiobooks/core";
 import { createWriteStream } from "node:fs";
 import { mkdir, rename, rm } from "node:fs/promises";
 import path from "node:path";
@@ -129,6 +129,29 @@ export class TorBoxDownloadClient implements DownloadClient {
     return { externalId, state: item.active ? "DOWNLOADING" : "QUEUED", ...(normalizedProgress === undefined ? {} : { progress: normalizedProgress }) };
   }
 
+  async resolveRemote(externalId: string, files: NonNullable<DownloadJobStatus["outputFiles"]>, signal?: AbortSignal): Promise<RemoteOutputReference[]> {
+    const external = parseExternalId(externalId);
+    const resolved: RemoteOutputReference[] = [];
+    for (const file of files) {
+      const parsed = /^torbox:\/\/(torrent|usenet)\/([^/]+)\/([^/]+)\/(.+)$/.exec(file.path);
+      if (!parsed || parsed[1] !== external.kind || parsed[2] !== external.id) throw new Error("Invalid TorBox output file reference");
+      const query = new URLSearchParams({ token: this.options.apiKey, file_id: parsed[3]! });
+      query.set(external.kind === "torrent" ? "torrent_id" : "usenet_id", external.id);
+      const envelope = await this.request(`/api/${external.kind === "torrent" ? "torrents" : "usenet"}/requestdl?${query}`, { method: "GET" }, signal);
+      if (typeof envelope.data !== "string") throw new Error("TorBox did not return a download URL");
+      const downloadUrl = new URL(envelope.data);
+      if (downloadUrl.protocol !== "https:" && downloadUrl.protocol !== "http:") throw new Error("TorBox returned an unsafe download URL");
+      await this.options.validateDownloadUrl?.(downloadUrl.toString());
+      resolved.push({
+        kind: "DIRECT_DOWNLOAD",
+        value: downloadUrl.toString(),
+        fileName: decodeURIComponent(parsed[4]!),
+        ...(file.sizeBytes === undefined ? {} : { sizeBytes: file.sizeBytes }),
+      });
+    }
+    return resolved;
+  }
+
   async materialize(externalId: string, files: NonNullable<DownloadJobStatus["outputFiles"]>, destinationDirectory: string, signal?: AbortSignal): Promise<Array<{ path: string; sizeBytes?: number }>> {
     const external = parseExternalId(externalId);
     await mkdir(destinationDirectory, { recursive: true });
@@ -138,19 +161,13 @@ export class TorBoxDownloadClient implements DownloadClient {
         if (signal?.aborted) throw signal.reason;
         const parsed = /^torbox:\/\/(torrent|usenet)\/([^/]+)\/([^/]+)\/(.+)$/.exec(file.path);
         if (!parsed || parsed[1] !== external.kind || parsed[2] !== external.id) throw new Error("Invalid TorBox output file reference");
-        const fileId = parsed[3]!;
         const rawName = decodeURIComponent(parsed[4]!);
         const safeName = rawName.normalize("NFKC").replace(/[\u0000-\u001f<>:"/\\|?*]/g, " ").replace(/\s+/g, " ").trim().slice(0, 180) || `file-${position + 1}`;
-        const query = new URLSearchParams({ token: this.options.apiKey, file_id: fileId });
-        query.set(external.kind === "torrent" ? "torrent_id" : "usenet_id", external.id);
-        const envelope = await this.request(`/api/${external.kind === "torrent" ? "torrents" : "usenet"}/requestdl?${query}`, { method: "GET" }, signal);
-        if (typeof envelope.data !== "string") throw new Error("TorBox did not return a download URL");
-        const downloadUrl = new URL(envelope.data);
-        if (downloadUrl.protocol !== "https:" && downloadUrl.protocol !== "http:") throw new Error("TorBox returned an unsafe download URL");
-        await this.options.validateDownloadUrl?.(downloadUrl.toString());
+        const [remote] = await this.resolveRemote(externalId, [file], signal);
+        if (!remote) throw new Error("TorBox did not return a download URL");
         const destination = path.join(destinationDirectory, `${String(position + 1).padStart(3, "0")}-${safeName}`);
         const partial = `${destination}.partial`;
-        const response = await this.fetcher(downloadUrl, { ...(signal ? { signal } : {}), redirect: "error" });
+        const response = await this.fetcher(remote.value, { ...(signal ? { signal } : {}), redirect: "error" });
         if (!response.ok || !response.body) throw new Error(`TorBox file download failed (${response.status})`);
         const declared = Number(response.headers.get("content-length"));
         if (file.sizeBytes !== undefined && Number.isFinite(declared) && declared !== file.sizeBytes) throw new Error("TorBox file size does not match the completed manifest");

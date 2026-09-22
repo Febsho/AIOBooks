@@ -26,10 +26,11 @@ services:
       retries: 5
     restart: unless-stopped
 
-  server:
+  aiobooks:
+    image: ghcr.io/febsho/aiobooks:latest
     build:
       context: .
-      target: server
+      target: production
     environment:
       NODE_ENV: production
       SERVER_HOST: 0.0.0.0
@@ -43,30 +44,19 @@ services:
       BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
       CREDENTIAL_ENCRYPTION_KEY: ${CREDENTIAL_ENCRYPTION_KEY:-}
       WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:8080}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:8080}
+      WEB_DIST_PATH: /app/apps/web/dist
       OPENLIBRARY_USER_AGENT: ${OPENLIBRARY_USER_AGENT:-AIOBooks/self-hosted}
+      OPENLIBRARY_BASE_URL: ${OPENLIBRARY_BASE_URL:-https://openlibrary.org}
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
     volumes:
       - aiobooks_data:/data
+    ports:
+      - "${AIOBOOKS_PORT:-8080}:3000"
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:3000/api/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks: [default, aio_network]
-    restart: unless-stopped
-
-  web:
-    build:
-      context: .
-      target: web
-    depends_on:
-      server: { condition: service_healthy }
-    ports:
-      - "8080:8080"
-    healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:8080/health"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -75,7 +65,7 @@ services:
       - traefik.http.routers.aiobooks.rule=Host(`${AIOBOOKS_HOST:-aiobooks.example.com}`)
       - traefik.http.routers.aiobooks.entrypoints=websecure
       - traefik.http.routers.aiobooks.tls=true
-      - traefik.http.services.aiobooks.loadbalancer.server.port=8080
+      - traefik.http.services.aiobooks.loadbalancer.server.port=3000
     networks: [default, aio_network]
     restart: unless-stopped
 

@@ -6,6 +6,8 @@ const configSchema = z.object({
   SERVER_HOST: z.string().default("0.0.0.0"),
   SERVER_PORT: z.coerce.number().int().positive().default(3000),
   WEB_ORIGIN: z.string().url().default("http://localhost:5173"),
+  PUBLIC_BASE_URL: z.string().url().default("http://localhost:3000"),
+  WEB_DIST_PATH: z.string().min(1).default("/app/apps/web/dist"),
   DATABASE_URL: z.string().min(1).default("postgresql://aiobooks:change-me@localhost:5432/aiobooks"),
   REDIS_URL: z.string().min(1).default("redis://localhost:6379"),
   ACQUISITION_STAGING_PATH: z.string().min(1).default("/data/staging"),
@@ -15,6 +17,7 @@ const configSchema = z.object({
   BOOTSTRAP_ADMIN_PASSWORD: z.preprocess((value) => value === "" ? undefined : value, z.string().min(12).optional()),
   CREDENTIAL_ENCRYPTION_KEY: z.preprocess((value) => value === "" ? undefined : value, z.string().optional()),
   OPENLIBRARY_USER_AGENT: z.string().min(8).default("AIOBooks/dev (admin@example.invalid)"),
+  OPENLIBRARY_BASE_URL: z.string().url().default("https://openlibrary.org"),
 }).superRefine((value, context) => {
   const hasEmail = Boolean(value.BOOTSTRAP_ADMIN_EMAIL);
   const hasPassword = Boolean(value.BOOTSTRAP_ADMIN_PASSWORD);

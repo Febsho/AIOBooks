@@ -15,9 +15,11 @@ describe("library adapters", () => {
     const source = path.join(temp, "source.m4b"); const root = path.join(temp, "library");
     await writeFile(source, "audio"); await (await import("node:fs/promises")).mkdir(root);
     const provider = new FilesystemLibraryProvider({ rootPath: root });
-    const imported = await provider.import({ edition, files: [{ path: source }] });
+    const imported = await provider.import({ edition, files: [{ path: source }], idempotencyKey: "acquisition-1" });
     expect(imported.itemId).toBe(path.join("An Author", "A Book"));
     await expect(readFile(path.join(root, "An Author", "A Book", "source.m4b"), "utf8")).resolves.toBe("audio");
+    await expect(provider.import({ edition, files: [{ path: source }], idempotencyKey: "acquisition-1" })).resolves.toEqual(imported);
+    await expect(provider.import({ edition, files: [{ path: source }], idempotencyKey: "another-acquisition" })).rejects.toThrow("already exists");
     expect(safeSegment("../../escape")).not.toContain("/");
   });
 

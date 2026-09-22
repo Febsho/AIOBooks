@@ -6,7 +6,7 @@ This repository is original AIOBooks code. It is not a fork of AIOStreams and co
 
 ## Current phase
 
-Phases 1 through 3 are complete. Phase 4 now includes the first acquisition slice:
+Phases 1 through 3 are complete. Phase 4 now includes the end-to-end acquisition pipeline:
 
 - React discovery UI
 - Fastify REST API and health endpoints
@@ -27,7 +27,15 @@ Phases 1 through 3 are complete. Phase 4 now includes the first acquisition slic
 - manual ranked-release selection with transactional auditing
 - Redis-backed durable TorBox submission and polling with PostgreSQL recovery
 - TorBox contract adapters for Usenet and magnet downloads
-- atomic filesystem delivery and Audiobookshelf scan adapters
+- temporary TorBox link materialization into persistent staging without storing CDN URLs
+- per-request delivery jobs with bounded retries and independent destinations
+- automatic best-release selection plus explicit manual selection
+- durable WANTED retries with bounded exponential backoff, jitter, and stale-search recovery
+- atomic filesystem delivery and idempotent Audiobookshelf scan retries
+- provider-neutral materialized and remote output contracts
+- per-user, revocable PageTurner Download Sources for direct-download, torrent, and stream result shapes
+- remote TorBox resolution without storing media or short-lived URLs on the AIOBooks host
+- one production image (`ghcr.io/febsho/aiobooks`) serving React and `/api` from one port
 
 See [Architecture](docs/architecture.md), [data model](docs/data-model.md), and [MVP phases](docs/mvp-phases.md).
 
@@ -48,4 +56,7 @@ The first start requires `BOOTSTRAP_ADMIN_EMAIL` and `BOOTSTRAP_ADMIN_PASSWORD`.
 ```bash
 pnpm check
 docker compose config
+docker compose up -d
 ```
+
+Production Compose exposes the combined AIOBooks frontend/API on `${AIOBOOKS_PORT:-8080}`. PostgreSQL and Redis remain separate services.

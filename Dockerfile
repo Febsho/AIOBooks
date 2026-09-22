@@ -20,7 +20,7 @@ FROM dependencies AS build
 COPY . .
 RUN pnpm build
 
-FROM node:24-alpine AS server
+FROM node:24-alpine AS production
 ENV NODE_ENV=production
 WORKDIR /app
 RUN mkdir -p /data/staging /data/libraries && chown -R node:node /data
@@ -28,6 +28,7 @@ COPY --from=dependencies /app/node_modules ./node_modules
 COPY --from=dependencies /app/apps/server/node_modules ./apps/server/node_modules
 COPY --from=dependencies /app/packages ./packages
 COPY --from=build /app/apps/server/dist ./apps/server/dist
+COPY --from=build /app/apps/web/dist ./apps/web/dist
 COPY --from=build /app/packages/core/dist ./packages/core/dist
 COPY --from=build /app/packages/metadata/dist ./packages/metadata/dist
 COPY --from=build /app/packages/providers/dist ./packages/providers/dist
@@ -44,8 +45,3 @@ COPY packages/libraries/package.json packages/libraries/package.json
 USER node
 EXPOSE 3000
 CMD ["node", "apps/server/dist/index.js"]
-
-FROM nginx:1.29-alpine AS web
-COPY --from=build /app/apps/web/dist /usr/share/nginx/html
-COPY deploy/nginx.conf /etc/nginx/conf.d/default.conf
-EXPOSE 8080

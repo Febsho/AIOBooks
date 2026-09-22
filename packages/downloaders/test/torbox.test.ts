@@ -55,4 +55,15 @@ describe("TorBoxDownloadClient", () => {
       expect(String(fetcher.mock.calls[1]?.[0])).not.toContain("secret");
     } finally { await rm(destination, { recursive: true, force: true }); }
   });
+
+  it("resolves remote outputs without downloading media locally", async () => {
+    const validate = vi.fn(async () => undefined);
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(json({ success: true, data: "https://cdn.example/book.m4b" }));
+    const client = new TorBoxDownloadClient({ apiKey: "secret", fetch: fetcher, validateDownloadUrl: validate });
+    await expect(client.resolveRemote("usenet:42", [{ path: "torbox://usenet/42/7/book.m4b", sizeBytes: 5 }])).resolves.toEqual([
+      { kind: "DIRECT_DOWNLOAD", value: "https://cdn.example/book.m4b", fileName: "book.m4b", sizeBytes: 5 },
+    ]);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(validate).toHaveBeenCalledWith("https://cdn.example/book.m4b");
+  });
 });

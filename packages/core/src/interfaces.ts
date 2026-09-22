@@ -75,10 +75,28 @@ export interface DownloadJobStatus {
   error?: string;
 }
 
+export type RemoteOutputKind = "MAGNET" | "DIRECT_DOWNLOAD" | "STREAM" | "REFERENCE";
+export type RemoteOutputState = "DISCOVERED" | "QUEUED" | "RESOLVING" | "READY" | "EXPIRED" | "FAILED";
+
+export interface RemoteOutputReference {
+  kind: RemoteOutputKind;
+  value: string;
+  expiresAt?: string;
+  contentType?: string;
+  fileName?: string;
+  sizeBytes?: number;
+}
+
+export interface AcquisitionOutputAdapter<TContext = unknown, TResult = unknown> {
+  readonly id: string;
+  expose(releases: RankedRelease[], context: TContext): Promise<TResult>;
+}
+
 export interface DownloadClient {
   readonly id: string;
   enqueue(input: EnqueueDownloadInput, signal?: AbortSignal): Promise<DownloadJobStatus>;
   status(externalId: string, signal?: AbortSignal): Promise<DownloadJobStatus>;
+  resolveRemote?(externalId: string, files: NonNullable<DownloadJobStatus["outputFiles"]>, signal?: AbortSignal): Promise<RemoteOutputReference[]>;
   materialize?(externalId: string, files: NonNullable<DownloadJobStatus["outputFiles"]>, destinationDirectory: string, signal?: AbortSignal): Promise<Array<{ path: string; sizeBytes?: number }>>;
   test(signal: AbortSignal): Promise<ConnectionTestResult>;
 }

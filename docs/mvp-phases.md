@@ -40,7 +40,7 @@ Implemented: canonical search results are persisted before request creation; Pro
 
 Exit: an audiobook request reaches `AVAILABLE` in a real configured environment.
 
-In progress: verified TorBox Usenet/magnet submission, polling, encrypted release references, Redis dispatch with PostgreSQL recovery, transactional manual selection/auditing, atomic filesystem import, and Audiobookshelf scan adapters are implemented with contract fixtures. Remote-file materialization, delivery-job orchestration, automatic selection, WANTED rescheduling, and live-account proof remain before the phase exit is met.
+In progress: verified TorBox Usenet/magnet submission, polling, encrypted release references, Redis dispatch with PostgreSQL recovery, automatic/manual selection, WANTED rescheduling with bounded jittered backoff, temporary-link materialization, per-request delivery jobs, atomic filesystem import, and Audiobookshelf scans are implemented. The output layer now separates materialized library delivery from storage-light remote delivery. Per-user PageTurner sources reuse canonical metadata and ranked release aggregation, expose magnets or fresh remote-download redirects, and never persist temporary URLs or media. The single production image serves React and Fastify together. Protocol-faithful end-to-end runs prove both WANTED-to-remote-READY with zero local files and filesystem delivery to `AVAILABLE`. TorBox account-queue promotion and live TorBox/Audiobookshelf/PageTurner-device proof remain before the phase exit is met.
 
 ## Phase 5 — production hardening
 

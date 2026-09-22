@@ -7,9 +7,9 @@ AIOBooks owns its domain, persistence, API, and UI. AIOStreams is inspiration on
 ## Runtime shape
 
 ```text
-Web client
-    | REST
-API server ---- PostgreSQL (durable state)
+Single AIOBooks container (React + Fastify, one origin/port)
+    | REST / static assets
+    +---------- PostgreSQL (durable state)
     |  |
     |  +------ Redis (jobs, leases, rate coordination)
     |
@@ -18,9 +18,13 @@ API server ---- PostgreSQL (durable state)
                              normalize -> match -> dedupe -> filter -> rank
     +-- search adapters ---/                            |
                                                         v
-                         request -> shared acquisition job -> download adapter
-                                                           -> import adapter
-                                                           -> library adapter
+                         request -> acquisition job -> normalized ranked release
+                                                        |                 |
+                                                        v                 v
+                                              MATERIALIZED             REMOTE
+                                      download -> staging ->     opaque reference or
+                                      library import ->          remote downloader state
+                                      AVAILABLE                  -> READY/EXPIRED/FAILED
 ```
 
 Routes orchestrate application services only. Provider response parsing and credentials never enter UI components or route-specific business logic.
@@ -50,7 +54,7 @@ Integrations live behind core interfaces and are grouped by capability, not by r
 8. Deduplicate by protocol identity/content hash first and normalized release fingerprint second.
 9. Apply profile filters, then score acceptable releases using profile-defined preferences.
 10. Auto-select above the configured threshold or enter `MANUAL_REVIEW`/`WANTED`.
-11. Send through a `DownloadClient`, monitor, import through a `LibraryProvider`, and fan completion out to all attached Requests.
+11. Pass normalized results to an output adapter. Materialized requests use a `DownloadClient`, staging, and a `LibraryProvider`; remote integrations expose encrypted magnet references or downloader-neutral resolver URLs without writing media locally.
 
 The aggregator returns per-provider diagnostics and accepts an optional completion policy. Phase 1 waits for all providers; a later policy may stop only when a provably sufficient candidate exists.
 
@@ -63,6 +67,7 @@ The aggregator returns per-provider diagnostics and accepts an optional completi
 - Cookies are `HttpOnly`, `Secure` in production, and `SameSite=Lax`; state-changing cookie-authenticated requests require CSRF protection.
 - Passwords use Argon2id. Opaque session and CSRF tokens are stored only as SHA-256 digests; session rows are revocable and expiring.
 - Integration credentials are isolated from connection metadata and encrypted with versioned AES-256-GCM keys. Credential blobs are never part of API DTOs.
+- PageTurner uses random revocable per-user tokens. Token-authenticated searches run as that user (never with administrator bypass), use a user-scoped acquisition compatibility key, and can access only owned or explicitly granted providers/downloaders.
 - Logs use structured fields and redact authorization, cookies, API keys, tokens, and connection secret blobs.
 
 ## External contracts verified for the implementation plan
@@ -70,7 +75,10 @@ The aggregator returns per-provider diagnostics and accepts an optional completi
 - Open Library search: `GET https://openlibrary.org/search.json`; selected fields include `key`, `title`, `author_name`, identifiers, cover, and nested `editions`. Work and Edition identity are deliberately distinct.
 - Newznab: compatible servers expose `GET /api` with `t=caps`, `t=book`, and the required general `t=search`; category IDs remain connection configuration rather than global assumptions. The adapter verifies caps and falls back from book search only when the server explicitly reports that function unsupported.
 - Prowlarr: the adapter uses its published OpenAPI `GET /api/v1/system/status` and `GET /api/v1/search` contracts with `type=book` and configured categories.
-- TorBox uses the official create/list/user endpoints, bearer authentication, and `downloadFinished` as the completion signal. CDN links are not persisted. Provider download references are stored only as independently encrypted release secrets.
+- TorBox uses the official create/list/user/request-download endpoints, bearer authentication, and `downloadFinished` as the completion signal. Short-lived CDN links are resolved only while materializing files and are never persisted. Provider download references are stored only as independently encrypted release secrets.
+- Completed shared downloads are materialized once into staging. Explicitly owned delivery jobs then import the same files independently into each Request's authorized filesystem or Audiobookshelf destination; a Request becomes `AVAILABLE` only after its own import succeeds.
+- Searches with no acceptable result enter `WANTED`. A database-backed schedule retries them with bounded exponential backoff and jitter; the worker also recovers stale `SEARCHING` jobs, and each attempt persists diagnostics and Request events before automatic selection can continue the pipeline.
+- PageTurner Download Source configs follow its documented JSON schema and expose separate `directDownload`, `torrent`, and `stream` source URLs because PageTurner declares one result type per source. Torrent magnets can be returned without TorBox. Usenet direct downloads require a compatible remote resolver; TorBox completion persists only opaque file references, while each client access requests a fresh temporary URL.
 
 ## Observability
 

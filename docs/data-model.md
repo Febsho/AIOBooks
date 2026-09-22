@@ -13,7 +13,7 @@ This separation prevents an ISBN for one translation or recording from becoming 
 
 ## Ownership and sharing
 
-Users and roles are explicit from the first migration. Profiles, connections, libraries, requests, and download jobs have ownership. A connection/profile/library is either `PRIVATE` or `SHARED`; access to a shared resource is still expressed through explicit permission rows. Secrets are stored in a separate encrypted credential table so list/detail queries cannot accidentally serialize them.
+Users and roles are explicit from the first migration. Profiles, connections, libraries, requests, download jobs, delivery jobs, integration tokens, remote requests, and remote outputs have ownership. A connection/profile/library is either `PRIVATE` or `SHARED`; access to a shared resource is still expressed through explicit permission rows. Secrets are stored in separate encrypted credential tables so list/detail queries cannot accidentally serialize them.
 
 ## Duplicate acquisition
 
@@ -21,4 +21,8 @@ Users and roles are explicit from the first migration. Profiles, connections, li
 
 ## Durable versus ephemeral data
 
-Canonical metadata, requests, state events, selected release snapshots, and jobs are durable. Search sessions retain diagnostics and only a bounded/redacted release snapshot; complete provider payloads are not permanent by default.
+Canonical metadata, requests, state events, selected release snapshots, and jobs are durable. Search sessions retain diagnostics and only a bounded/redacted release snapshot; complete provider payloads are not permanent by default. `acquisition_jobs.attempt_count` and `next_search_at` make WANTED retries restart-safe without a parallel scheduler state store.
+
+Release download references are separately encrypted. Temporary downloader URLs are never persisted. A completed download has one durable local manifest, while `delivery_jobs` track destination-specific retries and completion for each attached Request.
+
+`integration_tokens` stores only a lookup hash plus an encrypted recoverable token for the authenticated Settings UI. `remote_requests` records the integration-specific lifecycle; `remote_outputs` stores encrypted magnets or opaque downloader file references and explicit `QUEUED`, `RESOLVING`, `READY`, `EXPIRED`, and `FAILED` states. Remote requests never use `AVAILABLE`, which remains reserved for a satisfied library destination.
