@@ -28,7 +28,9 @@ services:
     restart: unless-stopped
 
   aiobooks:
-    image: ghcr.io/febsho/aiobooks:latest
+    # Build locally for the host architecture; the GHCR `latest` image is amd64-only.
+    image: aiobooks:local
+    pull_policy: build
     build:
       context: .
       target: production
